@@ -2,6 +2,7 @@ from io import BytesIO
 from typing import Dict
 from uuid import UUID
 from docx import Document
+import pymorphy3
 from app.models import NDAType, FieldsENG, FieldsRuEn
 from app.services.minio_service import minio_service
 
@@ -39,7 +40,7 @@ class DOCXGenerator:
     }
 
     def __init__(self):
-        pass
+        self.morph = pymorphy3.MorphAnalyzer()
 
     def _get_field_mapping(self, nda_type: NDAType) -> Dict[str, str]:
         if nda_type == NDAType.ENG:
@@ -48,6 +49,39 @@ class DOCXGenerator:
             return self.FIELD_MAPPING_RU_EN
         else:
             raise ValueError(f"Unknown NDA type: {nda_type}")
+
+    def _to_genitive(self, text: str) -> str:
+        if not text:
+            return text
+        
+        words = text.split()
+        inflected_words = []
+        
+        for word in words:
+            parses = self.morph.parse(word)
+            target_parse = None
+            
+            for p in parses:
+                if 'nomn' in p.tag:
+                    target_parse = p
+                    break
+            
+            if not target_parse:
+                target_parse = parses[0]
+            
+            inflected = target_parse.inflect({'gent'})
+            
+            if inflected:
+                result_word = inflected.word
+                if word.istitle():
+                    result_word = result_word.capitalize()
+                elif word.isupper():
+                    result_word = result_word.upper()
+                inflected_words.append(result_word)
+            else:
+                inflected_words.append(word)
+                
+        return " ".join(inflected_words)
 
     def _replace_placeholders(self, doc: Document, fields: Dict, mapping: Dict[str, str]) -> None:
         replacements = {
@@ -60,34 +94,26 @@ class DOCXGenerator:
             if not paragraph.runs:
                 return
             
-            # Собираем полный текст параграфа
             full_text = ''.join(run.text for run in paragraph.runs)
             
-            # Выполняем все замены
             modified_text = full_text
             for placeholder, value in replacements.items():
                 modified_text = modified_text.replace(placeholder, value)
             
-            # Если текст не изменился, выходим
             if modified_text == full_text:
                 return
             
-            # Создаем карту run для каждого символа в оригинальном тексте
-            char_to_run = []  # Для каждого символа в full_text храним индекс run
+            char_to_run = []
             for run_idx, run in enumerate(paragraph.runs):
                 char_to_run.extend([run_idx] * len(run.text))
             
-            # Строим карту позиций: new_pos -> (old_pos, run_idx)
             position_map = []
             old_pos = 0
             new_pos = 0
             
-            # Сортируем плейсхолдеры по длине (от длинных к коротким)
-            # чтобы правильно обработать случаи типа [POINT 7] и [POINT 7.1]
             sorted_placeholders = sorted(replacements.keys(), key=len, reverse=True)
             
             while old_pos < len(full_text):
-                # Ищем плейсхолдер на текущей позиции (проверяем сначала длинные)
                 placeholder_found = None
                 for placeholder in sorted_placeholders:
                     if full_text[old_pos:old_pos + len(placeholder)] == placeholder:
@@ -95,7 +121,6 @@ class DOCXGenerator:
                         break
                 
                 if placeholder_found:
-                    # Плейсхолдер найден - маппим замену
                     replacement = replacements[placeholder_found]
                     run_idx = char_to_run[old_pos] if old_pos < len(char_to_run) else 0
                     
@@ -105,23 +130,19 @@ class DOCXGenerator:
                     
                     old_pos += len(placeholder_found)
                 else:
-                    # Обычный символ
                     run_idx = char_to_run[old_pos] if old_pos < len(char_to_run) else 0
                     position_map.append(run_idx)
                     old_pos += 1
                     new_pos += 1
             
-            # Распределяем новый текст по runs согласно карте
             new_run_texts = [''] * len(paragraph.runs)
             for i, char in enumerate(modified_text):
                 if i < len(position_map):
                     run_idx = position_map[i]
                     new_run_texts[run_idx] += char
                 else:
-                    # Если вышли за границы карты, добавляем к первому run
                     new_run_texts[0] += char
             
-            # Применяем новый текст к runs
             for i, run in enumerate(paragraph.runs):
                 run.text = new_run_texts[i]
 
@@ -145,7 +166,12 @@ class DOCXGenerator:
         
         field_mapping = self._get_field_mapping(nda_type)
         
-        self._replace_placeholders(doc, fields, field_mapping)
+        processed_fields = fields.copy()
+        
+        if nda_type == NDAType.RU_EN and "signatory_name_ru" in processed_fields:
+            processed_fields["signatory_name_ru"] = self._to_genitive(processed_fields["signatory_name_ru"])
+        
+        self._replace_placeholders(doc, processed_fields, field_mapping)
         
         output = BytesIO()
         doc.save(output)
