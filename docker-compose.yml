@@ -44,7 +44,7 @@ services:
     env_file:
       - .env
     ports:
-      - "172.17.0.18100:8000"
+      - "172.17.0.1:8100:8000"
     environment:
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
