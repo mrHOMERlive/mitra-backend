@@ -47,6 +47,8 @@ services:
       - "172.17.0.1:8100:8000"
     environment:
       MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: ${MINIO_BUCKET}
@@ -80,7 +82,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  minio-data:
+  minio_data:
     driver: local
 
 networks:
