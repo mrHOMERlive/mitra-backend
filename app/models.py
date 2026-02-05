@@ -5,6 +5,14 @@ from pydantic import BaseModel, EmailStr, Field
 from uuid import UUID, uuid4
 
 
+class LeadCreate(BaseModel):
+    name: str
+    email: EmailStr
+    phone: str
+    details: str
+    website_url: Optional[str] = None  # Honeypot field
+
+
 class NDAType(str, Enum):
     ENG = "eng"
     RU_EN = "ru_en"

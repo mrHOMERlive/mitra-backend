@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import nda
+from app.routers import nda, leads
 
 app = FastAPI(
     title="NDA Backend Service",
@@ -17,6 +17,7 @@ app.add_middleware(
 )
 
 app.include_router(nda.router)
+app.include_router(leads.router)
 
 
 @app.get("/")

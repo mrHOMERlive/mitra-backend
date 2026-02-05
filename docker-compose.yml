@@ -25,6 +25,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: mitra-nda-backend
+    env_file:
+      - .env
     ports:
       - "8100:8000"
     environment:
