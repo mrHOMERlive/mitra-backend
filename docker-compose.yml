@@ -14,6 +14,7 @@ services:
       - minio_data:/data
     networks:
       - nda-network
+      - app-network
     deploy:
       resources:
         limits:
@@ -55,6 +56,7 @@ services:
       - minio
     networks:
       - nda-network
+      - app-network
     deploy:
       resources:
         limits:
@@ -82,3 +84,5 @@ volumes:
 networks:
   nda-network:
     driver: bridge
+  app-network:
+    external: true
